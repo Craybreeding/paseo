@@ -1,20 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import { ScrollView as RNScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { StyleSheet, UnistylesRuntime, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useSessionStore, type ExplorerFile } from "@/stores/session-store";
-import { filePreviewRenderKind } from "@/components/file-pane-render-mode";
+import { FilePanelPreview, resolveFilePreviewPanel } from "@/file-panels";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { getFileNameFromPath } from "@/attachments/utils";
 import { resolveFilePreviewReadTarget } from "@/file-explorer/preview-target";
@@ -28,8 +21,6 @@ import { useLiveFile } from "./live-file/hook";
 import { useFilePreview } from "./preview-lifecycle/hook";
 import { resolveFilePreviewLifecycle } from "./preview-lifecycle/model";
 import { FilePanelBar } from "./bar";
-import { FileHtmlPreview } from "./html-preview";
-import { FileMarkdownPreview } from "./markdown-preview";
 import { FileEditorModel, getFileConflictCallout, type FileConflictCallout } from "./editor/model";
 import { createFileObservationSource } from "./editor/observation-source";
 import { FileEditorView } from "./editor/view";
@@ -39,7 +30,6 @@ import type { LiveFileModel } from "./live-file/model";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { usePublishPanelInstanceAttributes } from "@/panels/panel-instance-attributes";
 import type { Theme } from "@/styles/theme";
-import { ZoomableImage } from "@/components/zoomable-viewport/image";
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -144,14 +134,7 @@ function FilePreviewBody({
 }: FilePreviewBodyProps) {
   const { t } = useTranslation();
   const filePath = location.path;
-  // A line target means the caller wants to land on that line, so fall back to
-  // the highlighted source view even for renderable files.
-  const renderKind =
-    preview?.kind === "text" && !location.lineStart && mode !== "source"
-      ? filePreviewRenderKind(filePath)
-      : null;
-
-  const previewScrollRef = useRef<RNScrollView>(null);
+  const { settings } = useAppSettings();
 
   if (isLoading && !preview) {
     return (
@@ -170,36 +153,26 @@ function FilePreviewBody({
     );
   }
 
+  const panel = resolveFilePreviewPanel({
+    preview,
+    path: filePath,
+    associations: settings.filePanelAssociations,
+  });
+  const showSource = preview.kind === "text" && (Boolean(location.lineStart) || mode === "source");
+  if (panel && !showSource) {
+    return (
+      <FilePanelPreview
+        panel={panel}
+        content={preview.content ?? ""}
+        filePath={filePath}
+        workspaceRoot={workspaceRoot}
+        client={client}
+        serverId={serverId}
+        imagePreviewUri={imagePreviewUri}
+      />
+    );
+  }
   if (preview.kind === "text") {
-    if (renderKind === "html") {
-      // The HTML document owns its own scrolling, so no ScrollView wrapper here.
-      return (
-        <View style={styles.previewScrollContainer}>
-          <FileHtmlPreview html={preview.content ?? ""} testID="file-html-preview" />
-        </View>
-      );
-    }
-
-    if (renderKind === "markdown") {
-      return (
-        <View style={styles.previewScrollContainer}>
-          <RNScrollView
-            ref={previewScrollRef}
-            style={styles.previewContent}
-            showsVerticalScrollIndicator
-          >
-            <FileMarkdownPreview
-              source={preview.content ?? ""}
-              filePath={filePath}
-              workspaceRoot={workspaceRoot}
-              client={client}
-              serverId={serverId}
-            />
-          </RNScrollView>
-        </View>
-      );
-    }
-
     return (
       <ReadonlySource
         preview={preview}
@@ -208,19 +181,6 @@ function FilePreviewBody({
         navigationRevision={navigationRevision}
       />
     );
-  }
-
-  if (preview.kind === "image") {
-    if (!imagePreviewUri) {
-      return (
-        <View style={styles.centerState}>
-          <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
-          <Text style={styles.loadingText}>{t("panels.file.loading")}</Text>
-        </View>
-      );
-    }
-
-    return <ZoomableImage uri={imagePreviewUri} testID="image-file-preview" />;
   }
 
   return (
@@ -243,6 +203,7 @@ export function FilePane({
   navigationRevision: number;
 }) {
   const { t } = useTranslation();
+  const { settings } = useAppSettings();
   const isMobile = useIsCompactFormFactor();
   const [previewMode, setPreviewMode] = useState<"preview" | "source">("preview");
 
@@ -292,7 +253,12 @@ export function FilePane({
 
   const { file: preview, imageAttachment } = resolveFilePreviewLifecycle(previewLifecycle);
   const imagePreviewUri = useAttachmentPreviewUrl(imageAttachment);
-  const isRenderable = isRenderablePreview(preview, location.path);
+  const panel = resolveFilePreviewPanel({
+    preview,
+    path: location.path,
+    associations: settings.filePanelAssociations,
+  });
+  const isRenderable = preview?.kind === "text" && panel !== null;
   const editable = isEditableTextFile({
     preview,
     supportsEditing,
@@ -331,10 +297,6 @@ export function FilePane({
       imagePreviewUri={imagePreviewUri}
     />
   );
-}
-
-function isRenderablePreview(preview: ExplorerFile | null, path: string): boolean {
-  return preview?.kind === "text" && filePreviewRenderKind(path) !== null;
 }
 
 function isEditableTextFile(input: {
@@ -707,16 +669,5 @@ const styles = StyleSheet.create((theme) => ({
     marginTop: theme.spacing[2],
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
-  },
-  previewScrollContainer: {
-    flex: 1,
-    minHeight: 0,
-  },
-  previewContent: {
-    flex: 1,
-    minHeight: 0,
-  },
-  previewCodeScrollContent: {
-    padding: theme.spacing[4],
   },
 }));
