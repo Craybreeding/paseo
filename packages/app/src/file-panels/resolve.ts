@@ -8,8 +8,6 @@ export interface FilePanelFile {
 export interface FilePanelSelector {
   extensions: readonly string[];
   filenames?: readonly string[];
-  /** Image classification comes from the file read, independent of its extension. */
-  kind?: "image";
 }
 
 export interface FilePanelCandidate {
@@ -36,7 +34,6 @@ function filePanelBasename(path: string): string {
 }
 
 function matchesSelector(file: FilePanelFile, selector: FilePanelSelector): boolean {
-  if (selector.kind) return selector.kind === file.kind;
   if (selector.filenames?.includes(filePanelBasename(file.path))) return true;
   const extension = filePanelExtension(file.path);
   return selector.extensions.some((entry) => entry.toLowerCase() === extension);

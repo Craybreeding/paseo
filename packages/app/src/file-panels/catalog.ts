@@ -1,12 +1,14 @@
 import { filePanelExtension, type FilePanelCandidate } from "./resolve";
 
+const markdownPanel = {
+  id: "builtin:markdown",
+  files: { extensions: ["md", "markdown"] },
+  document: "text",
+  maxBytes: Infinity,
+} as const satisfies FilePanelCandidate;
+
 export const builtinFilePanels = [
-  {
-    id: "builtin:markdown",
-    files: { extensions: ["md", "markdown"] },
-    document: "text",
-    maxBytes: Infinity,
-  },
+  markdownPanel,
   {
     id: "builtin:html",
     files: { extensions: ["html", "htm"] },
@@ -15,14 +17,12 @@ export const builtinFilePanels = [
   },
   {
     id: "builtin:image",
-    files: { extensions: [], kind: "image" },
+    files: { extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg"] },
     document: "bytes",
     maxBytes: Infinity,
   },
 ] as const satisfies readonly FilePanelCandidate[];
 
 export function isRenderedMarkdownFile(path: string): boolean {
-  return builtinFilePanels[0].files.extensions.some(
-    (extension) => extension === filePanelExtension(path),
-  );
+  return markdownPanel.files.extensions.some((extension) => extension === filePanelExtension(path));
 }

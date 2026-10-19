@@ -6,6 +6,8 @@ export { resolveFilePanel, type FilePanelCandidate, type FilePanelFile } from ".
 export { builtinFilePanels, isRenderedMarkdownFile } from "./catalog";
 export { FilePanelPreview } from "./builtin";
 
+export type FilePanel = (typeof builtinFilePanels)[number];
+
 export function resolveFilePreviewPanel(input: {
   preview: ExplorerFile | null;
   path: string;

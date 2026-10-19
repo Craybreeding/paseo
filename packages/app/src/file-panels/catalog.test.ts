@@ -50,21 +50,29 @@ describe("filePreviewRenderKind", () => {
 });
 
 describe("built-in file panels", () => {
-  it("keeps image classification independent of extension and associations", () => {
-    const resolution = resolveFilePanel({
-      file: { path: "/capture", kind: "image", size: 512, hasBytes: true },
-      candidates: builtinFilePanels,
-      associations: { "ext:": "builtin:markdown" },
-    });
-    expect(resolution.panel?.id).toBe("builtin:image");
-    expect(
-      resolveFilePanel({
-        file: { path: "capture.png", kind: "binary", size: 512, hasBytes: true },
+  it.each(["png", "jpg", "jpeg", "gif", "webp", "svg"])(
+    "registers the image extension %s",
+    (extension) => {
+      const resolution = resolveFilePanel({
+        file: {
+          path: `/capture.${extension.toUpperCase()}`,
+          kind: "image",
+          size: 512,
+          hasBytes: true,
+        },
         candidates: builtinFilePanels,
-        associations: {},
-      }).panel,
-    ).toBeNull();
-  });
+        associations: { [`ext:${extension}`]: "builtin:markdown" },
+      });
+      expect(resolution.panel?.id).toBe("builtin:image");
+      expect(
+        resolveFilePanel({
+          file: { path: "capture.png", kind: "binary", size: 512, hasBytes: false },
+          candidates: builtinFilePanels,
+          associations: {},
+        }).panel,
+      ).toBeNull();
+    },
+  );
 
   it("does not impose a new preview size limit on built-in text panels", () => {
     expect(

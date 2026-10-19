@@ -7,7 +7,7 @@ import { StyleSheet, UnistylesRuntime, withUnistyles } from "react-native-unisty
 import { useTranslation } from "react-i18next";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useSessionStore, type ExplorerFile } from "@/stores/session-store";
-import { FilePanelPreview, resolveFilePreviewPanel } from "@/file-panels";
+import { FilePanelPreview, resolveFilePreviewPanel, type FilePanel } from "@/file-panels";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { getFileNameFromPath } from "@/attachments/utils";
 import { resolveFilePreviewReadTarget } from "@/file-explorer/preview-target";
@@ -37,6 +37,7 @@ const foregroundMutedColorMapping = (theme: Theme) => ({
 });
 
 interface FilePreviewBodyProps {
+  panel: FilePanel | null;
   preview: ExplorerFile | null;
   mode?: "preview" | "source";
   isLoading: boolean;
@@ -121,6 +122,7 @@ function TooLargeSource({ size }: { size?: number }) {
 }
 
 function FilePreviewBody({
+  panel,
   preview,
   mode,
   isLoading,
@@ -134,7 +136,6 @@ function FilePreviewBody({
 }: FilePreviewBodyProps) {
   const { t } = useTranslation();
   const filePath = location.path;
-  const { settings } = useAppSettings();
 
   if (isLoading && !preview) {
     return (
@@ -153,11 +154,6 @@ function FilePreviewBody({
     );
   }
 
-  const panel = resolveFilePreviewPanel({
-    preview,
-    path: filePath,
-    associations: settings.filePanelAssociations,
-  });
   const showSource = preview.kind === "text" && (Boolean(location.lineStart) || mode === "source");
   if (panel && !showSource) {
     return (
@@ -274,6 +270,7 @@ export function FilePane({
 
   return (
     <FilePanePresentation
+      panel={panel}
       serverId={serverId}
       workspaceRoot={normalizedWorkspaceRoot}
       client={client}
@@ -312,6 +309,7 @@ function isEditableTextFile(input: {
 }
 
 function FilePanePresentation({
+  panel,
   serverId,
   workspaceRoot,
   client,
@@ -334,6 +332,7 @@ function FilePanePresentation({
   navigationRevision,
   imagePreviewUri,
 }: {
+  panel: FilePanel | null;
   serverId: string;
   workspaceRoot: string;
   client: DaemonClient | null;
@@ -369,6 +368,7 @@ function FilePanePresentation({
   if (editable && client && readTarget && preview?.kind === "text") {
     return (
       <EditableFilePane
+        panel={panel}
         key={`${serverId}:${readTarget.cwd}:${readTarget.path}`}
         serverId={serverId}
         workspaceRoot={workspaceRoot}
@@ -421,6 +421,7 @@ function FilePanePresentation({
         />
       ) : null}
       <FilePreviewBody
+        panel={panel}
         preview={preview}
         mode={previewMode}
         isLoading={isLoading}
@@ -437,6 +438,7 @@ function FilePanePresentation({
 }
 
 function EditableFilePane({
+  panel,
   serverId,
   workspaceRoot,
   client,
@@ -454,6 +456,7 @@ function EditableFilePane({
   location,
   navigationRevision,
 }: {
+  panel: FilePanel | null;
   serverId: string;
   workspaceRoot: string;
   client: DaemonClient;
@@ -601,6 +604,7 @@ function EditableFilePane({
         />
       ) : (
         <FilePreviewBody
+          panel={panel}
           preview={renderedPreview}
           mode={mode}
           isLoading={isLoading}
